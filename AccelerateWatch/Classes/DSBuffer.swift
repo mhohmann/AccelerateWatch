@@ -192,13 +192,13 @@ public class DSBuffer {
     public var max: Float {
         return dsbuffer_max(self.buffer)
     }
-
+    
     
     /// Min value
     public var min: Float {
         return dsbuffer_min(self.buffer)
     }
-
+    
     
     /// Variance
     public var variance: Float {
@@ -281,7 +281,7 @@ public class DSBuffer {
     
     
     /// Power spectral density (PSD), i.e. (abs(fft()))^2 / (fs*N)
-    /// 
+    ///
     /// - returns: array of size nfft/2+1
     public func powerSpectralDensity(_ fs: Float) -> [Float] {
         updateFFT()
@@ -292,7 +292,7 @@ public class DSBuffer {
     
     
     /// Average power over specific frequency band, i.e. mean(abs(fft(from...to))^2)
-    public func averageBandPower(_ fromFreq: Float = 0, toFreq: Float, fs: Float) -> Float {
+    public func averageBandPower(_ fromFreq: Float = 0, toFreq: Float, relative: Bool = false, fs: Float) -> Float {
         assert (fromFreq >= 0)
         assert (toFreq <= fs/2.0)
         assert (fromFreq <= toFreq)
@@ -304,10 +304,16 @@ public class DSBuffer {
         let fromIdx = Int(floor(fromFreq * Float(self.size) / fs))
         let toIdx = Int(ceil(toFreq * Float(self.size) / fs))
         
-        let bandPower = self.fftData![fromIdx...toIdx].map{$0.real*$0.real+$0.imag*$0.imag}
+        let bandPower = self.fftData![fromIdx...toIdx].map{log($0.real*$0.real+$0.imag*$0.imag)}
         
         // Averaging
-        return bandPower.reduce(0.0, +) / Float(toIdx - fromIdx + 1)
+        if relative {
+            let s = averageBandPower(toFreq: fs/2.0, fs: fs)
+            return (bandPower.reduce(0.0, +) / Float(toIdx - fromIdx + 1)) / s
+        }
+        else {
+            return bandPower.reduce(0.0, +) / Float(toIdx - fromIdx + 1)
+        }
     }
     
     public func bandPower(_ fromFreq: Float = 0, toFreq: Float, step: Float = 1, fs: Float) -> [Float] {
@@ -324,9 +330,10 @@ public class DSBuffer {
         for i in stride(from: fromFreq, to: toFreq - step, by: step) {
             let fromIdx = Int(floor(i * Float(self.size) / fs))
             let toIdx = Int(ceil((i+step) * Float(self.size) / fs))
-            let fbp = self.fftData![fromIdx...toIdx].map{$0.real*$0.real+$0.imag*$0.imag}
+            let size = Float(toIdx - fromIdx + 1)
+            let fbp = self.fftData![fromIdx...toIdx].map{log($0.real*$0.real+$0.imag*$0.imag)}
             
-            bp.append((fbp.reduce(0.0, +) / Float(fbp.count)))
+            bp.append(fbp.reduce(0.0, +) / size)
         }
         
         // NO Averaging
@@ -368,7 +375,7 @@ public class DSBuffer {
         let signalData: [Float] = [1.0, 4, 2, 5, 6, 7, -1, -8]
         for value in signalData {
             buf.push(value)
-//            print(buf.signals)
+            //            print(buf.signals)
         }
         buf.printBuffer("%.2f")
         
@@ -387,8 +394,8 @@ public class DSBuffer {
             let a = Float(arc4random_uniform(100))
             buf.push(a)
             let signals = buf.data
-//            print(a)
-//            print(signals)
+            //            print(a)
+            //            print(signals)
             assert(signals[size-1] == a)
         }
         
@@ -397,7 +404,7 @@ public class DSBuffer {
         let coeff = vDotProduct(norm, v2: norm)
         print(String(format: "coeff: %.2f\n", coeff))
         
-
+        
         print("\nDSBuffer test OK.\n\n")
     }
     
